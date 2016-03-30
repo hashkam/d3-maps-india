@@ -1,0 +1,87 @@
+<html>
+<head>
+<meta charset="utf-8">
+<script src="http://d3js.org/d3.v3.min.js"></script>
+<script src="http://d3js.org/topojson.v1.min.js"></script>
+<script src="http://d3js.org/queue.v1.min.js"></script>
+<link rel="stylesheet" type="text/css" href="style.css">
+</head>
+<body>
+	<script>
+		// Define SVG Width
+		var width = 1000;
+		var height = 1000;
+
+		// Define column for Keys in the csv data
+		var keyColumn = "State";
+
+		// Define column for Values in the csv data
+		var valueColumn = "Persons";
+
+		// Define map to fill Key Value pairs
+		var popByState = d3.map();
+
+		// Define quantized scale for color
+		var colorScale = d3.scale.quantize()
+			.range(d3.range(9).map(function (i){ return "q"+i+"-9";}));
+
+		// Define crop values for the topojson
+		var cropValueX = 1.18;
+		var cropValueY = 0.67;
+		var scaleValue = 800;
+
+		// Define projection
+		var projection = d3.geo.mercator()
+			.translate([-cropValueX*scaleValue,cropValueY*scaleValue])
+			.scale(scaleValue);
+
+		//Define path function
+		var path = d3.geo.path().projection(projection);
+
+		// Append SVG element into body
+		var svg = d3.select("body").append("svg")
+			.attr("width",width)
+			.attr("height",height);
+
+		// Append "g" group element into SVG
+		g = svg.append("g")
+			.attr("transform","translate(-"+0+","+0+")");
+
+		// Define the zoom function
+		var zoom = d3.behavior.zoom()
+		    .scaleExtent([1, 8])
+		    .on("zoom", zoomed);
+
+		svg
+	    	.call(zoom)
+	    	.call(zoom.event);
+
+	    queue()
+	    	.defer(d3.json,"in-states-topo.json")
+	    	.defer(d3.csv,"population.csv", function (d) {
+	    		d.Persons = +d.Persons;
+	    		if (d.State != "India@") { popByState.set(d[keyColumn],d[valueColumn]); }
+	    	})
+	    	.await(drawmap)
+
+		function drawmap(error, world) {
+
+			// Set domain for the colorScale
+			colorScale.domain([d3.min(popByState.values(), function (d) {return parseInt(d);}), d3.max(popByState.values(), function (d) {return parseInt(d);})]);
+
+			// Bind data to paths and create paths
+			g.selectAll("path").data(topojson.feature(world, world.objects.states).features)	
+				.enter()
+					.append("path")
+						.attr("d", path)
+						.attr("class", function (d) { return d.properties.name + " state boundary " + colorScale(popByState.get(d.properties.name));});
+
+		}
+
+		function zoomed() {
+			g.attr("transform", "translate(" + d3.event.translate + ")scale(" + d3.event.scale + ")");
+		}	
+
+	</script>
+</body>
+</html>
